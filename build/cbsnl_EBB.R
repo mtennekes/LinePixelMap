@@ -54,19 +54,40 @@ dt2 = dt |>
 	pivot_longer(-Datum)
 
 ts = split(dt2, dt2$name)
-
-ts = lapply(ts, function(x) {
-	x |> arrange(Datum)
-})
+ts = lapply(ts, function(x) select(x, Datum, value))
 
 
-dt2 |> 
-	group_by(name) |> 
-	arrange(Datum) |> 
+create_LPM = function(x, value.class = c(1, 2, 4, 8), time.class = c(1, 2, 4, 8)) {
+	names(x) = c("date", "value")
+	df = expand.grid(vc = value.class, tc = time.class)
+	rng = range(x$value)
 	
-
-
-ggplot(dt2, aes(x = Datum, y = value)) +
-	geom_line() +
-	facet_wrap(~name, scales = "free_y")
+	rnd = function(value, rng = range(value), cls) {
+		value_norm = (value - rng[1]) / diff(rng)
+		value_cls = as.integer(cut(value_norm, breaks = seq(0, 1, by = 1/cls), include.lowest = T, right = F))
+		value_disc = ((value_cls - 1) / cls) + (1/(cls*2))
+		value_disc
+	}
 	
+	df$values = mapply(function(vc, tc) {
+		x |> mutate(#value_norm = (value - min(value)) / diff(range(value)),
+					#value_cls = as.integer(cut(value_norm, breaks = seq(0,1,by=1/df$vc[i]), include.lowest = T, right = F)),
+					date_int = as.integer(date),
+					date_norm = (date_int - min(date_int)) / diff(range(date_int)),
+					date_cls = as.integer(cut(date_norm, breaks = seq(0,1,by=1/tc), include.lowest = T, right = F))) |> 
+			group_by(date_cls) |> 
+			summarise(value = rnd(mean(value), rng = rng, cls = vc)) |> 
+			select(value) |> 
+			as.list() |> 
+			unname()
+	}, df$vc, df$tc, SIMPLIFY = FALSE)
+	
+	df
+}
+
+LPMs = lapply(ts, create_LPM)
+
+LPMs
+
+
+
