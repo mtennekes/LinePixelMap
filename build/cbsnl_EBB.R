@@ -57,7 +57,7 @@ ts = split(dt2, dt2$name)
 ts = lapply(ts, function(x) select(x, Datum, value))
 
 
-create_LPM = function(x, value.class = c(1, 2, 4, 8), time.class = c(1, 2, 4, 8)) {
+create_LPM = function(x, value.class = c(2, 4, 8, 16), time.class = c(2, 4, 8, 16)) {
 	names(x) = c("date", "value")
 	df = expand.grid(vc = value.class, tc = time.class)
 	rng = range(x$value)
@@ -87,7 +87,41 @@ create_LPM = function(x, value.class = c(1, 2, 4, 8), time.class = c(1, 2, 4, 8)
 
 LPMs = lapply(ts, create_LPM)
 
-LPMs
 
+LPM = function(x, palette = c4a("brewer.purples", n = 8, range = c(0.1, 1))) {
+	names(x) = c("date", "value")
+	require(grid)
+	require(cowplot)
+	require(gridGraphics)
+	
+	y = create_LPM(x) |> 
+		mutate(row = log2(vc),
+			   col = log2(tc))
+	
+	vp_tree = grid::vpStack(
+		grid::viewport(width = grid::unit(1, "snpc"), height = grid::unit(1, "snpc")),
+		grid::viewport(layout = grid::grid.layout(4, 4)))
+	g = do.call(grid::grobTree, c(lapply(1:nrow(y), function(i) {
+		vals = unlist(y$values[i])
+		cl = cols[as.integer(vals * 8 + 1)]
+		do.call(grid::grobTree, c(lapply(1:y$tc[i], function(j) {
+			grid::grobTree(grid::rectGrob(gp=grid::gpar(fill=cl[j], col = NA)), vp = grid::viewport(layout.pos.row = 1, layout.pos.col = j))
+		}), list(vp = grid::vpStack(grid::viewport(layout.pos.col = y$col[i], layout.pos.row = y$row[i]), grid::viewport(width = 0.9, height = 0.9), grid::viewport(layout = grid::grid.layout(nrow = 1, ncol = y$tc[i]))))))
+	}), list(vp = vp_tree)))
+	
+	
+	p = ggplot(x, aes(x = date, y = value)) + geom_line()
+
+	plot_grid(p, g)
+	
+}
+
+ggplot(dt2, aes(x = Datum, y = value)) +
+	geom_line() +
+	facet_wrap(~name, scales = "free_y")
+
+
+LPM(ts$NA_nsg)
+LPM(ts$NA_sg)
 
 
